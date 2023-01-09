@@ -3,11 +3,16 @@ package ai.onnxruntime.example.imageclassifier
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import android.content.res.AssetManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.os.SystemClock
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import java.io.File
+import java.io.FileInputStream
+import java.io.InputStream
 import java.util.*
 import kotlin.math.exp
 
@@ -64,7 +69,7 @@ internal class ORTAnalyzer(
     }
 
     // Rotate the image of the input bitmap
-    fun Bitmap.rotate(degrees: Float): Bitmap {
+    fun Bitmap.rotate(degrees: Float): Bitmap? {
         val matrix = Matrix().apply { postRotate(degrees) }
         return Bitmap.createBitmap(this, 0, 0, width, height, matrix, true)
     }
@@ -107,6 +112,70 @@ internal class ORTAnalyzer(
         }
 
         image.close()
+    }
+
+    fun pathToBitmap(path: String?): Bitmap? {
+        return try {
+            val f = File(path)
+            val options = BitmapFactory.Options()
+            options.inPreferredConfig = Bitmap.Config.ARGB_8888
+            val bmp = BitmapFactory.decodeStream(FileInputStream(f), null, options)
+            return bmp
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun loadImageFromFile(path: String?): Bitmap? {
+        try {
+            val bitmap = BitmapFactory.decodeFile(path)
+            return bitmap
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return null
+    }
+
+    fun analyzeBts(aBitmap: Bitmap) {
+        // Convert the input image to bitmap and resize to 224x224 for model input
+//        val path = "/Users/weebee/development/ort_image_classification_android/app/src/main/java/ai/onnxruntime/example/imageclassifier/bts.png"
+//        val imgBitmap = loadImageFromFile(path)
+//        val imgBitmap2 = pathToBitmap(path)
+        val rawBitmap = Bitmap.createScaledBitmap(aBitmap, 224, 224, false)
+//        val bitmap = rawBitmap?.rotate(image.imageInfo.rotationDegrees.toFloat())
+        val bitmap = rawBitmap
+
+        if (bitmap != null) {
+            val imgData = preprocess(bitmap)
+            val inputName = ortSession?.inputNames?.iterator()?.next()
+            var result = Result()
+            val shape = longArrayOf(1, 224, 224, 3)
+            val ortEnv = OrtEnvironment.getEnvironment()
+            ortEnv.use {
+                // Create input tensor
+                val input_tensor = OnnxTensor.createTensor(ortEnv, imgData, shape)
+                val startTime = SystemClock.uptimeMillis()
+                input_tensor.use {
+                    // Run the inference and get the output tensor
+                    val output = ortSession?.run(Collections.singletonMap(inputName, input_tensor))
+                    output.use {
+                        // Populate the result
+                        result.processTimeMs = SystemClock.uptimeMillis() - startTime
+                        @Suppress("UNCHECKED_CAST")
+                        val labelVals = ((output?.get(0)?.value) as Array<FloatArray>)[0]
+                        result.detectedIndices = argMax(labelVals)
+                        for (idx in result.detectedIndices) {
+                            result.detectedScore.add(labelVals[idx])
+                        }
+                        output.close()
+                    }
+                }
+            }
+
+            // Update the UI
+            uiUpdateCallBack(result)
+        }
     }
 
     // We can switch analyzer in the app, need to make sure the native resources are freed

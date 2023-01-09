@@ -6,8 +6,10 @@ import ai.onnxruntime.OrtSession
 import ai.onnxruntime.OrtSession.SessionOptions
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
@@ -33,6 +35,46 @@ class MainActivity : AppCompatActivity() {
         // Request Camera permission
         if (allPermissionsGranted()) {
             startCamera()
+
+//            val ortSession: OrtSession? = CreateOrtSession()
+//            repeat(10) {
+//                val imgBitmap = loadImageFromFile()
+//                val rawBitmap = imgBitmap?.let { Bitmap.createScaledBitmap(it, 224, 224, false) }
+//    //            val bitmap = rawBitmap?.rotate(image.imageInfo.rotationDegrees.toFloat())
+//                val bitmap = rawBitmap
+//
+//                if (bitmap != null) {
+//                    val imgData = preprocess(bitmap)
+//                    val inputName = ortSession?.inputNames?.iterator()?.next()
+//                    var result = Result()
+//                    val shape = longArrayOf(1, 224, 224, 3)
+//                    val ortEnv = OrtEnvironment.getEnvironment()
+//                    ortEnv.use {
+//                        // Create input tensor
+//                        val inputTensor = OnnxTensor.createTensor(ortEnv, imgData, shape)
+//                        val startTime = SystemClock.uptimeMillis()
+//                        inputTensor.use {
+//                            // Run the inference and get the output tensor
+//                            val output =
+//                                ortSession?.run(Collections.singletonMap(inputName, inputTensor))
+//                            output.use {
+//                                // Populate the result
+//                                result.processTimeMs = SystemClock.uptimeMillis() - startTime
+//                                @Suppress("UNCHECKED_CAST")
+//                                val labelVals = ((output?.get(0)?.value) as Array<FloatArray>)[0]
+//                                result.detectedIndices = argMax(labelVals)
+//                                for (idx in result.detectedIndices) {
+//                                    result.detectedScore.add(labelVals[idx])
+//                                }
+//                                output.close()
+//                            }
+//                        }
+//                    }
+//                    print(result)
+//                    print(result.toString())
+//                }
+//            }
+
         } else {
             ActivityCompat.requestPermissions(
                     this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
@@ -41,7 +83,13 @@ class MainActivity : AppCompatActivity() {
         enable_nnapi_toggle.setOnCheckedChangeListener { _, isChecked ->
             enableNNAPI = isChecked
             imageAnalysis?.clearAnalyzer()
+            val ortAnalyzer = ORTAnalyzer(CreateOrtSession(), ::updateUI)
             imageAnalysis?.setAnalyzer(backgroundExecutor, ORTAnalyzer(CreateOrtSession(), ::updateUI))
+            val path = ""
+            val drawable = getDrawable(R.drawable.bts)
+            val bitmapDrawable = drawable as BitmapDrawable
+            val bitmap = bitmapDrawable.bitmap
+            ortAnalyzer.analyzeBts(bitmap)
         }
     }
 
@@ -50,23 +98,23 @@ class MainActivity : AppCompatActivity() {
         ortEnv = OrtEnvironment.getEnvironment(OrtLoggingLevel.ORT_LOGGING_LEVEL_FATAL)
 
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-
+//
         cameraProviderFuture.addListener(Runnable {
-            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-
-            // Preview
-            val preview = Preview.Builder()
-                    .setTargetAspectRatio(AspectRatio.RATIO_16_9)
-                    .build()
-                    .also {
-                        it.setSurfaceProvider(viewFinder.surfaceProvider)
-                    }
-
-            imageCapture = ImageCapture.Builder()
-                    .setTargetAspectRatio(AspectRatio.RATIO_16_9)
-                    .build()
-
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+//            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+//
+//            // Preview
+//            val preview = Preview.Builder()
+//                    .setTargetAspectRatio(AspectRatio.RATIO_16_9)
+//                    .build()
+//                    .also {
+//                        it.setSurfaceProvider(viewFinder.surfaceProvider)
+//                    }
+//
+//            imageCapture = ImageCapture.Builder()
+//                    .setTargetAspectRatio(AspectRatio.RATIO_16_9)
+//                    .build()
+//
+//            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
             imageAnalysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -75,14 +123,14 @@ class MainActivity : AppCompatActivity() {
                         it.setAnalyzer(backgroundExecutor, ORTAnalyzer(CreateOrtSession(), ::updateUI))
                     }
 
-            try {
-                cameraProvider.unbindAll()
-
-                cameraProvider.bindToLifecycle(
-                        this, cameraSelector, preview, imageCapture, imageAnalysis)
-            } catch (exc: Exception) {
-                Log.e(TAG, "Use case binding failed", exc)
-            }
+//            try {
+//                cameraProvider.unbindAll()
+//
+//                cameraProvider.bindToLifecycle(
+//                        this, cameraSelector, preview, imageCapture, imageAnalysis)
+//            } catch (exc: Exception) {
+//                Log.e(TAG, "Use case binding failed", exc)
+//            }
         }, ContextCompat.getMainExecutor(this))
     }
 
@@ -99,7 +147,7 @@ class MainActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (allPermissionsGranted()) {
-                startCamera()
+//                startCamera()
             } else {
                 Toast.makeText(this,
                         "Permissions not granted by the user.",
@@ -152,6 +200,34 @@ class MainActivity : AppCompatActivity() {
 
             return ortEnv?.createSession(readModel(), so)
         }
+    }
+
+    fun loadImageFromFile(): Bitmap? {
+        try {
+            return BitmapFactory.decodeFile("ai/onnxruntime/example/imageclassifier/bts.png")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return null
+    }
+
+    fun argMax(labelVals: FloatArray): List<Int> {
+        var indices = mutableListOf<Int>()
+        for (k in 0..2) {
+            var max: Float = 0.0f
+            var idx: Int = 0
+            for (i in 0..labelVals.size - 1) {
+                val label_val = labelVals[i]
+                if (label_val > max && !indices.contains(i)) {
+                    max = label_val
+                    idx = i
+                }
+            }
+
+            indices.add(idx)
+        }
+
+        return indices.toList()
     }
 
     companion object {
