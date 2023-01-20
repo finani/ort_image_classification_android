@@ -9,8 +9,8 @@ const val IMAGE_MEAN: Float = 127.5f;
 const val IMAGE_STD: Float = 127.5f;
 const val DIM_BATCH_SIZE = 1;
 const val DIM_PIXEL_SIZE = 3;
-const val IMAGE_SIZE_X = 224;
-const val IMAGE_SIZE_Y = 224;
+const val IMAGE_SIZE_X = 192; // 384, 192
+const val IMAGE_SIZE_Y = 320; // 672, 320
 
 // Preprocess for MobileNet V1
 fun preprocess(bitmap: Bitmap): FloatBuffer {
@@ -24,14 +24,30 @@ fun preprocess(bitmap: Bitmap): FloatBuffer {
     val bmpData = IntArray(IMAGE_SIZE_X * IMAGE_SIZE_Y)
     bitmap.getPixels(bmpData, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
 
+    val imgArray: ArrayList<ArrayList<ArrayList<Float>>> = arrayListOf()
+
     var idx: Int = 0
     for (i in 0..IMAGE_SIZE_X - 1) {
+//        val lineArray: ArrayList<ArrayList<Float>> = arrayListOf()
         for (j in 0..IMAGE_SIZE_Y - 1) {
             val pixelValue = bmpData[idx++]
-            imgData.put(((pixelValue shr 16 and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
-            imgData.put(((pixelValue shr 8 and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
-            imgData.put(((pixelValue and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
+//            imgData.put(((pixelValue shr 16 and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
+//            imgData.put(((pixelValue shr 8 and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
+//            imgData.put(((pixelValue and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
+            imgData.put((pixelValue shr 16 and 0xFF) / 255.0F)
+            imgData.put((pixelValue shr 8 and 0xFF) / 255.0F)
+            imgData.put((pixelValue and 0xFF) / 255.0F)
+//            imgData.put((pixelValue shr 16 and 0xFF).toFloat())
+//            imgData.put((pixelValue shr 8 and 0xFF).toFloat())
+//            imgData.put((pixelValue and 0xFF).toFloat())
+
+//            val rgbArray: ArrayList<Float> = arrayListOf()
+//            rgbArray.add((pixelValue shr 16 and 0xFF) / 255.0F)
+//            rgbArray.add((pixelValue shr 8 and 0xFF) / 255.0F)
+//            rgbArray.add((pixelValue and 0xFF) / 255.0F)
+//            lineArray.add(rgbArray)
         }
+//        imgArray.add(lineArray)
     }
 
     imgData.rewind()

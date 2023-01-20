@@ -4,10 +4,9 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtLoggingLevel
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.OrtSession.SessionOptions
+import ai.onnxruntime.providers.NNAPIFlags
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
 import android.widget.Toast
@@ -17,6 +16,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import kotlinx.android.synthetic.main.activity_main.*
+import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -35,58 +35,18 @@ class MainActivity : AppCompatActivity() {
         // Request Camera permission
         if (allPermissionsGranted()) {
             startCamera()
-
-//            val ortSession: OrtSession? = CreateOrtSession()
-//            repeat(10) {
-//                val imgBitmap = loadImageFromFile()
-//                val rawBitmap = imgBitmap?.let { Bitmap.createScaledBitmap(it, 224, 224, false) }
-//    //            val bitmap = rawBitmap?.rotate(image.imageInfo.rotationDegrees.toFloat())
-//                val bitmap = rawBitmap
-//
-//                if (bitmap != null) {
-//                    val imgData = preprocess(bitmap)
-//                    val inputName = ortSession?.inputNames?.iterator()?.next()
-//                    var result = Result()
-//                    val shape = longArrayOf(1, 224, 224, 3)
-//                    val ortEnv = OrtEnvironment.getEnvironment()
-//                    ortEnv.use {
-//                        // Create input tensor
-//                        val inputTensor = OnnxTensor.createTensor(ortEnv, imgData, shape)
-//                        val startTime = SystemClock.uptimeMillis()
-//                        inputTensor.use {
-//                            // Run the inference and get the output tensor
-//                            val output =
-//                                ortSession?.run(Collections.singletonMap(inputName, inputTensor))
-//                            output.use {
-//                                // Populate the result
-//                                result.processTimeMs = SystemClock.uptimeMillis() - startTime
-//                                @Suppress("UNCHECKED_CAST")
-//                                val labelVals = ((output?.get(0)?.value) as Array<FloatArray>)[0]
-//                                result.detectedIndices = argMax(labelVals)
-//                                for (idx in result.detectedIndices) {
-//                                    result.detectedScore.add(labelVals[idx])
-//                                }
-//                                output.close()
-//                            }
-//                        }
-//                    }
-//                    print(result)
-//                    print(result.toString())
-//                }
-//            }
-
         } else {
             ActivityCompat.requestPermissions(
                     this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
 
         enable_nnapi_toggle.setOnCheckedChangeListener { _, isChecked ->
-            enableNNAPI = isChecked
+            enableNNAPI = true
             imageAnalysis?.clearAnalyzer()
             val ortAnalyzer = ORTAnalyzer(CreateOrtSession(), ::updateUI)
             imageAnalysis?.setAnalyzer(backgroundExecutor, ORTAnalyzer(CreateOrtSession(), ::updateUI))
             val path = ""
-            val drawable = getDrawable(R.drawable.bts)
+            val drawable = getDrawable(R.drawable.img_blade_seven)
             val bitmapDrawable = drawable as BitmapDrawable
             val bitmap = bitmapDrawable.bitmap
             ortAnalyzer.analyzeBts(bitmap)
@@ -182,7 +142,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun readModel(): ByteArray {
-        return resources.openRawResource(R.raw.mobilenet_v1_float).readBytes();
+        return resources.openRawResource(R.raw.best_test_230118).readBytes();
     }
 
     private fun readLabels(): List<String> {
@@ -192,42 +152,18 @@ class MainActivity : AppCompatActivity() {
     private fun CreateOrtSession(): OrtSession? {
         val so = SessionOptions()
         so.use {
+            val nnapi_flags = NNAPIFlags.USE_FP16
+            val nnapi_flags2 = NNAPIFlags.USE_NCHW
+            val nnapi_flags_set = EnumSet.of(nnapi_flags);
+//            OrtSession::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_Nnapi(so, nnapi_flags));
             // Set to use 2 intraOp threads for CPU EP
             so.setIntraOpNumThreads(2)
 
             if (enableNNAPI)
-                so.addNnapi()
+                so.addNnapi() // nnapi_flags_set
 
             return ortEnv?.createSession(readModel(), so)
         }
-    }
-
-    fun loadImageFromFile(): Bitmap? {
-        try {
-            return BitmapFactory.decodeFile("ai/onnxruntime/example/imageclassifier/bts.png")
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return null
-    }
-
-    fun argMax(labelVals: FloatArray): List<Int> {
-        var indices = mutableListOf<Int>()
-        for (k in 0..2) {
-            var max: Float = 0.0f
-            var idx: Int = 0
-            for (i in 0..labelVals.size - 1) {
-                val label_val = labelVals[i]
-                if (label_val > max && !indices.contains(i)) {
-                    max = label_val
-                    idx = i
-                }
-            }
-
-            indices.add(idx)
-        }
-
-        return indices.toList()
     }
 
     companion object {
